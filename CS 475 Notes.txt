@@ -1,0 +1,63 @@
+CS 475 Notes
+Spring 2018
+
+
+Project Notes
+================================================================================
+
+
+double time0 = omp_get_wtime();
+	-> OpenMP call
+	-> used to get time
+
+
+
+USE SCRIPTING TO MAKE THIS SHIT EASIER TO TEST DIFFERENT NUMBERS!
+
+
+Simple OpenMP intro
+=============================================================================
+
+Open Multi-Processing
+
+	-> mostly compiler directives "pragmas"
+
+#pragma omp directive [clause]
+
+turn it on in Linux:
+	g++ -o proj proj.cpp -lm -fopenmp
+
+For windows turn on, see slide 4 of the lecture
+	-> in config props in VS
+
+
+Coolest thing (possibly):
+
+
+	omp_set_num_threads(NUMT);  // sets how many threads will be in the thread pool
+
+	...
+
+	#pragma omp parallel for
+	for(int i = 0; i < arraySize; i++)
+	{....}
+
+	-> code starts as a single thread,
+	then this uses NUMT threads to execute the loop simultaneously
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
