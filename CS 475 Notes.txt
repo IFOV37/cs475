@@ -47,6 +47,159 @@ Coolest thing (possibly):
 
 
 
+Parallel programming background infomation
+
+Lecture 1 (A?)
+=======================================================
+
+3 reasons:
+	1) increase performance (more work same time)
+	2) increase performance (take lest time to do the same amt of work)
+	3) make some programming tasks more convenient to implement
+
+
+3 types of parallelism:
+
+	1) instruction level parallelism (ILP)
+		-> out of order execution
+			-> logic looks ahead to grab some code that it can execute while waiting on something that might be blocked (such as fetchign something that isn't in cache (getting from memory))
+
+			-> if compiler does this = Static ILP
+			-> if CPU chip = Dynamic ILP
+
+		Note: we can't control this
+
+
+	2) Data Level Parallelism (DLP)
+		-> executing the same instructions on different parts of the data
+			If we have a for loop on a large array and same instructions.. we can break this up!
+				-> multiple threads on multiple cores
+
+			We will use OpenMP with this!
+
+
+	3) Thread Level Parallelism (TLP)
+		-> executing DIFFERENT instructions
+			Ex: variety of incoming transaction requests
+		-> implies you have more threads than cores
+		-> thread exec switches when a thread blocks or uses up its time slice
+
+State:
+	-> Registers
+	-> Program Counter
+	-> Stack Pointer
+
+	(We will visit this again in multi-core programming)
+
+
+Process:
+	executes a program in memory
+
+	keeps a state (see above)
+
+
+Thread:
+	separate indp procs, all execing a common pgm and sharing memory
+		-> each thread has its own state
+
+	-> only thing different is each thread has it's own stack
+
+	can time share on a single processors
+		(don't need multiple processors, but you can - MULTICORE COMING SOON!)
+
+
+
+lecture 2
+=============================================================================
+
+Conflicts in multithreaded programs.. Thread safety
+	-> can take a function that be used many times and won't alter the state of something
+
+	What is not thread safe?
+
+		Ex: char *strtok (char * str, const char * delims);
+
+		-> this keeps internal state info.. if we alter that state in a 2nd thread, this screws with the first threads info.
+
+		strtok_r returns the internal state (new version of strtok)
+			-> so you can pass back when ready.. 'r' stands for "re-entrant"
+
+
+
+Deadlock Fault Problems:
+	Deadlock: 2 threads are each waiting for the other to do something
+
+
+Race Condition Fault:
+	-> where it matters which trhead gets to a particular piece of code first
+	-> often comes about when on thread is modifying a var while the other thread is in the midst of using it
+
+	Often fixed with Mutual Exclusion Locks (Mutexes)
+		-> lock the stuff while we do something, then unlock and let the other grab it and do its thing
+
+volatile keyword: used to let the compiler know that another thread might be changing a variable "in the background", so don't make any assumptions about what can be optimized away.
+	Ex:  volatile int val = 0;
+		w/o volatile a good compiler would know that val == 0
+
+
+
+restrict keyword: w/o this could create race condition in the "optimized", but wrong code.
+	-> this is a "promise" that the vars will never point to the same memory location
+
+
+lecture 3
+=======================================================================================
+
+Functional (or Task) Decomposition:
+	-> breaking a task into sub-tasks that represent separate fns
+	-> primarily indpt
+
+
+Domain (or Data) Decomposition
+	-> breaking task into sub-tasks that represent separate sections of data
+	Ex: big matrix solutions
+
+
+Atomic: An operation that takes place to completion w/ no chance of being interrupted by another thread
+
+Deterministic: same set of inputs always gives the same outputs
+
+Reduction: Combining the results from multiple threads into a single sum or product, continuing to use multithreading. Typically performed so that it takes O(log_2 N) time instead of O(N) time
+
+Fine-grained parallelism: breaking a task into lots of small tasks
+
+Coarse-grained parallelism: breaking a task up into small number of large tasks
+
+Barrier: A point in the pgm where ALL threads must reach before any of them are allowed to proceed
+
+
+Fork-join: operationg whr multiple threads are created from a main thread.  All of those forked threads are expected to eventually finish and thus "join back up" w/ the main thread
+
+Shared Variable: After a fork operation, a var which is shared among threads, i.e., has a single value
+
+Private variable: After a fork op, a var which has a private copy w/in each thread
+
+Static scheduling: dividng the total # of tasks T up so that each of N available threads has T/N sub-tasks to do
+
+Dynamic scheduling: dividing the total # of tasks T up so that each of N available threads has less than T/N sub-tasks to do, and then doling out the remaining tasks to threads as they become available
+
+Speed-up(N)   T_1 / T_N
+
+Speed-up Efficiency Speed-up(N) / N
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
