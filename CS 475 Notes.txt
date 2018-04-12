@@ -192,6 +192,72 @@ Speed-up Efficiency Speed-up(N) / N
 
 
 
+WEEK 2
+---------------------------------------------------------------------------------
+(lecture 4 was week 2 welcome)
+
+lecture 5 - Open MP A
+=================================================================================
+
+both directive and library-based
+
+shared executable, global memory, and heap
+
+Not totally deterministic, so no guarantee identical behavior accross venders or hardware
+	-> even multiple runs on same hardware
+
+Doesn't guarantee order of execution either
+
+
+
+Open MP usage:
+g++ -o proj proj.cpp -lm -fopenmp
+
+for intel optimization:
+icpc -o proj proj.cpp -lm -fopenmp -align -qopt-report=3 -qopt-report-phase=vec
+
+
+set num threads:
+omp_set_num_threads(num);
+
+ask how many cores this pgm has access to:
+num = omp_get_num_procs();
+
+how many threads using right now?:
+num = omp_get_num_threads();
+
+which thread one is?
+me = omp_get_thread_num();
+
+
+
+#pragma omp parallel default(none)
+	-> creates the team of threads to exec
+	-> threads won't be in order
+
+
+lecture 6 - Open MP B
+=========================================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
