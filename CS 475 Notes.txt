@@ -240,11 +240,42 @@ lecture 6 - Open MP B
 =========================================================================================
 
 
+#pragma omp parallel for default(none)
+	-> creates team of threads and divides them among the for loop passes w/ 1 line of code
+	-> default(none) - could remove the implied barrier with this optional item
+
+	default(none) aka no default
+		-> ensures variables are explicitly declared inside and outside the threaded portion w/ shared or private
+
+	private(x) - means each thread has its own copy of var x
+
+	shared(x) - all threads shared a common x
 
 
+	Ex:
+	#pragma omp parallel for default(none), private(i,j), shared(x)
 
 
+if you don't schedule with OpenMP, it defaults to static
+	schedule(static [,chunksize])
+	schedule(dynamic [,chunksize])
+			-> chunksize defaults to 1
 
+
+lecture 6 - Open MP C
+=========================================================================================
+
+
+Where can we see problems?
+
+	Ex: adding a sum in the for loop that has be made to operate in parallel
+
+		-> no guarantee the sum line is exec'd correctly
+
+		-> no guarantee each thread will finish this line b4 some other thread interrupts it
+			multiple Assembly code lines are usually is generated
+
+		-> non-deterministic
 
 
 
