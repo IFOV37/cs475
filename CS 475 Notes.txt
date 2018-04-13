@@ -278,20 +278,102 @@ Where can we see problems?
 		-> non-deterministic
 
 
+	3 solutions:
+
+		1)   #pragma omp atomic
+			-> fixes non-deterministic problem
+			-> tries to use a built in hardware instruction
+
+		2)  #pragma omp critical
+			-> disables scheduler interrupts during the critical section
+
+
+				BEST METHOD
+		3) #pragma omp parallel for reduction(+:sum),private(myPartialSum)
+			....
+			sum = sum + myPartialSum;
+
+			-> in O(log_2 N) instead of O(N)
+			-> reduction creates a sum private var for each thread
+				-> adds each some in a binary fashion (hence O(log_2 N))
+
+
+
+lecture 7 - Open MP D
+===========================================================================================
+
+Synchronization:
+
+	Mutual Exclusion Locks (Mutexes)
+
+		omp_init_lock(omp_lock_t *);
+		omp_set_lock(omp_lock_t *);  // blocks if lock not available, sets and rtns when avail
+		omp_unset_lock(omp_lock_t *);
+		omp_test_lock(omp_lock_t *);  // if lock not avail, rtn 0, if avail, sets and retrns !0
+
+Critical sections
+	#pragma omp critical
+		-> restricts exec to 1 thread at a time
+
+	#pragma omp single
+		-> restricts exe to a single thread ever
+
+Barriers
+
+	#pragma omp barrier
+		-> forces each thread to wait here until all threads arrive
+			-> implied w/ for loops and openMP sections, unless NOWAIT clause is used.
+
+
+Creating sections of MP Code
+	-> indp blocks of code, able to be assigned to separate threads if they are available
+
+	#pragma omp parallel sections
+	{
+		#pragma omp section
+		{
+			Task 1
+		}
+
+		#pragma omp section
+		{
+			Task 2
+		}
+	}  // implied barrier here
+
+
+
+OpenMP Tasks - works like a section, but created on the fly
+
+	#pragma omp task
+		code here
+
+	Force a barrier
+		#pragma omp taskwait
+
+
+lecture 9 - Speedups and Amdahl's law
+===========================================================================
+
+Using n processors, speedup_n is:
+
+	speedup_n = T1 / Tn... actually, I think this should be flipped with Tn on top. as speedup should be > 1
+
+Speedup Efficiency_n:
+		E_n = Speedup_n / n  (could be as high as 1)
 
 
 
 
+Amdahl's Law:
+
+	Speedup_n = T1 / Tn
+		= 1 /  [ (F_parallel / n) + F_sequential ]
+
+		= 1 / [ (F_p / n) + (1 - F_p)]
 
 
-
-
-
-
-
-
-
-
+			-> parallel potion can be cut down, but not sequential
 
 
 
