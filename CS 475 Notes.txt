@@ -358,6 +358,8 @@ lecture 9 - Speedups and Amdahl's law
 Using n processors, speedup_n is:
 
 	speedup_n = T1 / Tn... actually, I think this should be flipped with Tn on top. as speedup should be > 1
+						-> if you take the inverse of this number, you get something > 1
+							-> which is just the number of Tn / T1 anyway.
 
 Speedup Efficiency_n:
 		E_n = Speedup_n / n  (could be as high as 1)
@@ -366,6 +368,7 @@ Speedup Efficiency_n:
 
 
 Amdahl's Law:
+	-> mainly used to predict the theoretical max speedup of a program processing using multiple processors
 
 	Speedup_n = T1 / Tn
 		= 1 /  [ (F_parallel / n) + F_sequential ]
@@ -374,6 +377,50 @@ Amdahl's Law:
 
 
 			-> parallel potion can be cut down, but not sequential
+
+	-> if we know the max F_p, we can calc the max speedup
+
+
+	F_p =   n / (n-1)   * T1 - Tn / T1
+		=  n / (n-1)  * ( 1 -  1 / speedup)
+
+
+
+	maxspeedup = 1 / 1 - F_p
+
+
+
+Gustafson's Obersvation:
+	As amount of data increases, you can increase the parallel fraction
+		-> data generally comes in on the parallel side rather than the sequential side
+			-> it does still have to be read in, so there is some sequential, so this is somewhat theoretical
+
+lecture 10 - Moore's Law and Multicore
+===========================================================================
+
+Moore's Law
+	-> obersvation that "transistor density doubles every 1.5 years"
+		-> does not necessarily mean clock speed does the same.. was a artifact of the above
+
+After about 2003 - transistor density is still following the law, but clock speed and power cosnumption leveled off
+
+Power Consumption (by the chip) is proportional to ClockSpeed ^ 2
+	-> if you keep doubling clock speed, this would get incredibly hot
+		For instance: by about mid 00's, it would be as hot as a nuclear reactor
+			-> 2015 ish = sun's surface
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
