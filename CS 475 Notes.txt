@@ -411,10 +411,26 @@ Power Consumption (by the chip) is proportional to ClockSpeed ^ 2
 
 
 
+Since we aren't increasing clock speed due to power consumption (hitting a wall), what do we do with the extra space?
+	-> pack multiple processors onto the same chip
+		-> this is MultiCore
+
+MultiCore and Multithreading
+
+MC w/o MT is a good thing.  Use to allow multiple pgms on a desktop system to always be executing concurrently.  (MC is basically more hardware aka processors)
+
+MT w/o MC, still a good thing.  Threads can make it easier to logically have many things going on in your program at a time, and can absorb the dead-time of other threads.
+	-> Largely only software
+
+Big performance gain: use both to speed up a single program.
+	-> we need to be prepared to convert our programs to run on MultiThreaded Shared Memory Multicore architectures
 
 
 
-
+HT = Hyper Threading
+	-> processor could have HT, but not multiple execution units
+	-> not really 2 simul threads, but these 2 can swap quickly
+	-> most important: count the execution units
 
 
 
