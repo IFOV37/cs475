@@ -434,6 +434,196 @@ HT = Hyper Threading
 
 
 
+week 3
+------------------------------------------------------------------------------------
+
+bubble sort
+================================================================================
+
+If we remove the inner for loop to see what is happening with bubble sort and parallelizing it, we basically have a bunch of conditionals inside 1 loop
+	-> 1 conditional could be on one thread and the next on a different.
+		-> since we have no control over thread scheduling, this is a race condition
+
+	We would then do the pragma omp statement on the inner loop:
+		#pragma omp parallel for default(none),shared(A, first)
+
+		take note that the inner loop jumps by 2 (this looks at pairs)
+			-> outer loop starts with odd or even based on first
+
+for( int i = 0; i < N; i++ )
+{
+	int first = i % 2; 		// 0 if i is 0, 2, 4, ...
+							// 1 if i is 1, 3, 5, ...
+
+	#pragma omp parallel for default(none),shared(A,first)
+
+	for( int j = first; j < N-1; j += 2 )
+	{
+		if( A[ j ] > A[ j+1 ] )
+		{
+			std::swap( A[ j ], A[ j+1 ] );
+		}
+	}
+}
+
+
+tree traversal using openmp tasks
+===============================================================================
+Tasks are good for DS that you don't know how big they are (LL, Trees, etc..)
+
+Assume we want to traverse as quickly as possible
+	-> BUT DO NOT CARE ABOUT ORDER
+
+
+	#pragma omp parallel
+	{
+		#pragma omp single
+
+		Traverse(root); // w/o this, each thread does a full traversal
+						// at best = wasteful
+						// at worst = dangerous
+	}
+
+	#pragma omp taskwait  // if you want to wait for all nodes to be traversed b4 proceeding
+
+
+void
+Traverse( Node *n )
+{
+	if( n->left != NULL )
+	{						// with tasks, these types of things are added to a task's to do list
+		#pragma omp task private(n) untied   // untied - means another open thread can steal 											this one (to work on it)
+		Traverse( n->left );
+	}
+
+	if( n->right != NULL )
+	{
+		#pragma omp task private(n) untied
+		Traverse( n->right );
+	}
+
+	#pragma omp taskwait	// if you want both branches to be taken b4 processing the parent
+	// can get rid of this if we don't care as it will slow stuff down
+
+	Process( n );
+}
+
+Summary:
+
+Tasks get spread among the current "thread team"
+
+Tasks can execute immediately or be deferred.  They are exec'd at "some time."
+
+Tasks can be moved b/w threads, that is, if one thread has a backlog of tasks to do, an idel thread can come steal some workload.
+
+Tasks are more dynamic than sections.  The task paradigm would still work if there was a variable number of children at each node.
+
+
+
+cache A
+============================================================================
+
+Problem: the path b/w a cpu chip and off-chip memory is slow
+	-> put in "intermediate memory"
+		-> Hierarchical Memory systems or "Cache"
+
+	-> cache and memory are named by "distance level" from the ALU
+		L1 - smaller, faster, closer
+		L2 - slightly larger, a little slower, a little further away
+
+		-> cache brings more things in from memory so it doesn't have to go as far to get it
+
+
+Example of characteristics:
+	L1 cache: 32KB + 32KB  .. or Instruction and Data cache
+
+
+
+Cache hit: when cpu asks for a value from memory and that value is already in the cache, it can get it quickly
+
+Cache miss: cpu asks for val in mem, val not in cache, it will have to go off the chip to get it
+
+Cache Line: while cache might be multiple kilo or megabytes, the bytes are transferred in much smaller quantities (each is called this)
+	-> size of a cache line is typically just 64 bytes
+
+
+
+Successful cache use depends on both:
+
+Spatial Coherence:
+	“If you need one memory address’s contents now, then you will probably
+	also need the contents of some of the memory locations around it soon.”
+
+Temporal Coherence:
+	“If you need one memory address’s contents now, then you will probably
+	also need its contents again soon.”
+
+
+EX:
+	If have 2 for loops (1 nested) and we are accessing rows and columns, think of a 4 x 4 grid of values.
+		-> If you access the first 16 positions, this will be fast due to the values being stored in cache (across the rows)
+		-> if you go down via columns, this is slower since not all the values are in cache
+			-> we are accessing things out of order
+
+
+
+cache B
+==============================================================================
+
+Which is better: array of structs or structure of arrays?
+
+	-> if we are going to use them in groups (x, y, z), then the array of structs works well
+		-> better spatial coherence
+
+	-> if we want to take the average of numbers where we add up all the arrays
+		-> better to use structure of arrays (list)
+
+
+PREVIEW FOR SIMD:
+	Dx[0:N] = X[0:N] - Xnow;  // a for loop from 0 to N-1
+
+
+
+Good OOP style can be incosistent with Good Cache use
+	-> new/malloc could be all over the place.. bad for spatial coherence
+
+		-> to solve, you use new/malloc selectively
+			-> don't malloc 1 at a time, do a bunch so we get a bunch of memory addresses next to each other
+				-> when you add a new list element, you grab it from the ones you created
+
+				*great spatial coherence*
+
+
+Why can we get decreased performance as data sets get larger?
+	-> violating temporal coherence
+		-> only using every value once, so it is in cache but we never use it again
+		-> arthimatic is outrunning your ability to reload
+
+Preview of Pre-Fetching (later in SIMD)
+	-> helps with temporal problem
+
+	-> when you are in a for loop and load the 0th ele, pre-fetch the 16th
+
+Example of where cache coherence matters:
+	Matrix multiplication
+		-> goes across Row of A, but down col of B
+
+	*You don't have to do this in i, j, k order*
+		-> if you did something like i, k, j
+			-> goes row i of A and row k of B
+				-> produces ele (i, j) of C
+
+				*i k j has the best spatial coherence*
+
+
+
+
+
+
+
+
+
+
 
 
 
