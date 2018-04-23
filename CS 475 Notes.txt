@@ -616,6 +616,160 @@ Example of where cache coherence matters:
 				*i k j has the best spatial coherence*
 
 
+cache C
+===============================================================================
+
+cache architectures
+
+N-way Set Associate - cache line from a particular block of memory can appear in a limited number of places in a cache.  Each "limited place" is called a set of cache lines  A set contains N cache lines.
+
+	N is typically 4 for L1 and 8 or 16 for L2
+
+
+64 bytes in a cache line (refresher)
+
+
+Each core has its own separate L2 cache
+	-> say 2 cores are operating on vars in your pgm that happen to live on the same cache line
+		-> fine if they read
+		-> if one writes, the other is no longer correct.
+
+		So cache maintains 4 states
+			1. Modified
+			2. Exclusive
+			3. Shared
+			4. Invalid
+
+			(MESI)
+
+
+			Say you do this:
+				1) read something with core A..
+						A = exclusive
+
+				2) core B reads val from same mem area
+						A = shared
+						B = shared
+
+				3) B writes into that val, retagged as mod'd, core A re-tagged
+						A = Invalid
+						B = Modified
+
+				4) A tries to read val from same part of mem, but this is invalid
+					-> core B cache line has to be flushed back to mem
+					-> then A cache line is re-loaded from mem
+					-> now both are shared
+
+					This is False Sharing - huge performance hit (not incorrect results)
+
+
+cache D
+==================================================================================
+
+
+False Sharing Example Problem:
+
+struct s
+{
+	float value;
+	int pad[NUMPAD];  // we could set numpad=3, which would space it out enough to not 								invalidate the cache line
+					// can be variable from 0 to 15 (0 basically gotten rid of by compiler)
+					// setting to 7, we have 2 on each of the 1st 2 cache lines
+					// setting to 15, we have 1 on each of 4 cache lines, thus best performance
+} Array[4];
+
+omp_set_num_threads( 4 );
+
+#pragma omp parallel for
+	for( int i = 0; i < 4; i++ )
+	{
+		for( int j = 0; j < SomeBigNumber; j++ )
+		{
+			Array[ i ].value = Array[ i ].value + (float)rand( );
+			// this reads and writes to the same, thus invalidating the cache line
+		}
+	}
+
+	* 1 kind of fix is the above... this is to pad your data structures to put key values on different cache lines.. this optimizes the efficience.. *
+		-> by wasting memory, you can improve performance.. who'da thunk it
+			-> "being cache aware"
+
+
+Potential fix #2:
+
+If we use local vars, instead of continguous array locations, that will spread out our writes out in memory, and to different cache lines
+
+	-> temp local variables live on each thread's stack
+		-> thus not next to each other in memory
+
+
+
+
+
+#include <stdlib.h>
+struct s
+{
+	float value;
+} Array[4];
+
+omp_set_num_threads( 4 );
+
+const int SomeBigNumber = 100000000;
+
+#pragma omp parallel for
+	for( int i = 0; i < 4; i++ )
+	{
+		float tmp = Array[ i ].value;  // THIS GUY.. makes this a private variable that lives in 									each thread's individual stack
+							// this works b/c a localized temp variable is created in each core's stack area, so little or no cache line conflict exists
+
+		for( int j = 0; j < SomeBigNumber; j++ )
+		{
+			tmp = tmp + (float)rand( );
+		}
+		Array[ i ].value = tmp;
+	}
+
+		*this does one read and one store per exe *
+
+
+malloc'ing on a cache line
+	-> know each cache line starts on a fixed 64-byte doundaries lets you do this:
+		top N-6 bits tell you what cache line number this address is a part of.
+		btm 6 bits tell you what offset that address has w/in that cache line.
+
+			Ex: 32-bit mem system:
+
+			|	32-6 = 26 bits     |    6 bits |
+				cache line number 		offset in that cache line
+
+				*so, if you see a mem add whose btm 6 bits are 000000, then you know that that mem location begins a cache line*
+
+
+Normal allocation of a struct where you want to mallloc an ARRAYSIZE array of them:
+
+struct xyzw *p = (struct xyzw *) malloc( (ARRAYSIZE)*sizeof(struct xyzw) );
+struct xyzw *Array = &p[0];
+. . .
+Array[ i ].x = 10. ;
+
+
+
+Want to make sure that array of structs started on a cache line boundary:
+
+unsigned char *p = (unsigned char *) malloc( (ARRAYSIZE+1)*sizeof(struct xyzw) );
+int offset = (int)p & 0x3f; 						// 0x3f = bottom 6 bits are all 1’s
+struct xyzw *Array = (struct xyzw *) &p[64-offset];
+. . .
+Array[ i ].x = 10. ;
+
+
+To free, use free(p);
+Not free(Array);
+
+
+
+
+
 
 
 
