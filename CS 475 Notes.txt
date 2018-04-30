@@ -769,13 +769,158 @@ Not free(Array);
 
 
 
+Week 4
+======================================================================================
+
+rabbit lecture
+-----------------------------------------------------------------------------------
+
+rabbit.engr.oregonstate.edu
+	-> used explicitely for this class that we can ssh into
+	-> xeon system, 2 processor, 16 cores total, 64 gb of memory
+
+	-> attached to it is 15SMs and 2800 CUDA cores 6GB graphics card
+	-> attached xeon phi 57 core system
+		-> 4 way hyper threaded (224 hyperthreads)
+
+
+	lscpu -> gives info about cpu
+
+
+	Login:   rabbit.engr.oregonstate.edu -l yourengrusername
+									^ dash el
+
+		-> get your stuff working first, then go here
+
+		Need to put stuff in rabbit act's .cshrc 
+			-> source .cshrc
+
+			Check out slide 7 for this week on what you need to enter.
+
+	NOT REQUIRED TO RUN ANY TESTS ON HERE, BUT GOOD FOR INTERESTING DATA AND FUN
+
+
+Prefetching lecture
+--------------------------------------------------------------------------------
+
+Prefetching -> the process go going out and reaching ahead and saying " I don't need it yet, but sometime pretty soon I'm going to need this cache line out here ahead"
+	-> compiler specific
+
+	-> used to place cache line in memory before it is to be used, thus hiding the latency of fetching from off-chip memory
+
+	2 key issues:
+		1) issuing the prefetch at the right time
+
+			-> if too late, then mem values won't be back when the pgm wants to use them and processor has to wait anyway
+
+			-> too early there is a chance the values could be evicted from cache by another need b4 they can be used
+
+
+		2) issuing the prefetch at the right distance
+
+			-> the "prefetch distance" is how far ahead the prefetch memory is than the memory we are using right now
+
+			-> too far, and the values sit in cache for too long, and possible evicted
+
+			-> too near, and the pgm is ready for the values b4 they have arrived
+
+
+	To do this, we will need to use the built in function:
+		void__builtin_prefetch(void *, int rw, int locality);
+
+		-> random note: there are 2 prefetch registers
+ 
+Parallel Pgm Design Patterns and Strategies
+---------------------------------------------------------------------------------------
+
+Functional (or Task) Decomposition Design Pattern
+	-> think of sim game where it has climate, animals, plants, and money as tasks
+
+
+
+Task Distribution Design for Patterns of ||ism
+
+Could do:
+
+Thread-to-thread (semaphore): all could be sharing data among themselves
+
+Broadcast: 1 thread is main broadcaster that sends data to the other threads
+
+Reduction: already used this.. each thread does something as part of a whole, then aggregates them
+
+Scatter, Gather: found in super computer type work
+	-> master thread decomposes the data problem, sends all the pieces out
+	-> G collects all the answers back
 
 
 
 
+Decentralized (Peer): input sends to one of any of the "peer threads"
+	-> threads something to centralized output
 
 
+Manager/workers: 
+	Mngr input "manager thread"
+		-> "worker threads" where the stuff is farmed out to perform
+		-> centralized output
 
+Map-Reduce:
+	"map thread" input
+		-> farms out to worker threads
+		-> back into the "accumulate thread"
+			-> then to the output
+
+
+Pipeline: 
+	input -> 1st through 4th thread, then to output
+		-> like a queue and has a buffer for each thread
+
+
+Part 2 of DP notes.. (design B)
+-----------------------------------------------------------------------
+heating simulation:
+
+If we allocate 1 large array, we will see false sharing (and a performance hit) because
+all of the data is on the same cache lines, but we are updating that data
+	-> we still have to look forwards and backwards, so we will cross the cache line boundaries
+
+
+If we split it up into arrays for # of cores
+	-> split up so each has it's own cache line
+	-> T_i-1 and T_i+1 might not be on the same cache line - if you are on the boundary
+		-> we need some logic that goes to look this up
+
+
+Compute to Communicate Ratio
+
+	In our example:
+
+	Intracore computing - we have 4 elements that can all compute amongst each other w/o any need for communication
+
+	Intercore communication: 2 units of communication
+
+		(N is generalized rather than 4)
+	Compute: Communicate Ratio = N : 2
+
+			-> 4 core maching C:C = 4:2
+			-> 8 core machine C:C = 2:2
+
+				-> "goldilocks and the 3 bears sort of thing"
+
+				-> too small C:C ratio and you are spending all your time sharing data values across threads and doing too little computing
+
+				-> too high ratio, not spreading out your problem among enough threads to get good parallelism
+
+			Difficult to find "sweet spot" w/o running exp's
+
+
+	2D C:C aka Area-to-Perimeter
+		N^2: 4N = N:4 where N is the dimension of compute nodes per core
+
+	3D: vol-to-surface
+		N^3: 6N^2 = N:6
+
+		
 
 
 
