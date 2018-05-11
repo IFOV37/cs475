@@ -922,6 +922,205 @@ Compute to Communicate Ratio
 
 		
 
+Week 5
+======================================================================================
+
+SIMD - Vector (processing) parallel programming
+-----------------------------------------------------------------------------------
+
+Why do we care?
+	-> Performance
+
+Many hdw archs today, both CPU and GPU allow you to perform arithmetic ops on multiple array eles simultaneously.
+	(Single Instruction Multiple Data)
+
+	EX probs:
+		convolution, fourier transform, power spectrum, autocorrelation, etc..
+
+SIMD in Intel chips
+1999  SSE  Width(bits) 128   Width (FP words) 4
+2013  AVX-512  512   16  (one complete cache line!)   -> xeon phi
+		-> prefetch is important here due to this!
+
+		(standard scalar multiplication)
+normal assembly ex:		//  inst  src, dst
+	mulss  r1, r0     // multiples r contents of each and puts back in r0
+
+SIMD:
+	Does this, but 4 of them at the same time
+	mulps 	xmm1, xmm0		// mulps src, dst  "att form"
+	Think replicating the hardware 3 additional times
+		-> x registers (extended)
+			-> this is actually 4 floating pt #s, aka 128 bits.
+				-> operation is basically the same, but the stuff happens in parallel
+				"all 4 xreg1 #s mult into all 4 xreg0 #s"
+
+SIMD Multiplication:
+
+Array * Array
+
+void SimdMul(float *a, float *b, float *c, int len)
+{
+	c[0:len] = a[0:len] * b[0:len];
+} // after : is array size, NOT go through that index
+
+
+Could do through open mp
+
+Array * Array
+
+void SimdMul(float *a, float *b, float *c, int len)
+{
+	#pragma omp simd
+	for(int i = 0, i < len; i++)
+		c[i] = a[i] * b[i];
+} 
+
+
+
+Array * Scalar
+void SimdMul(float *a, float b, float *c, int len)
+{
+	c[0:len] = a[0:len] * b;
+}
+
+void SimdMul(float *a, float b, float *c, int len)
+{
+	#pragma omp simd
+	for(int i = 0, i < len; i++)
+		c[i] = a[i] * b;
+} 
+
+
+
+Combining SIMD w/ || threading in openmp 4.0
+
+#pragma omp parallel for
+for(int i = 0; i < ArraySize; i++)
+{
+	c[i] = a[i] * b[i];
+}
+
++
+
+#pragma omp simd
+for(int i = 0; i < ArraySize; i++)
+{
+	c[i] = a[i] * b[i];
+}
+
+
+have child:
+
+#pragma omp parallel for simd
+for(int i = 0; i < ArraySize; i++)
+{
+	c[i] = a[i] * b[i];
+}
+	-> this gives the compiler even more license to spread this out on threads, then have the threads use SIMD units to speed it up even more
+		-> Prof says he has not found that this produces anywhere near the full potential
+			-> but probably will in the future
+
+
+Requirements for a for-loop to be Vectorized
+
+	i) if there are nested loops, the inner one must be the one vectorized
+
+	ii) no jumps or branches. "masked assignments" (an if-statement controlled assingment are OK)
+			-> if (A[i] > 0.)
+				 B[i] = 1.;
+
+	iii) total # of iterations must be known at runtime when the loop starts
+
+	iv) cannot be any backward loo dependencies, like this:
+			A[i] = A[i-1] + 1.;
+
+	v) helps if the eles have contiguous memory addresses
+
+
+Prefetching
+	-> when whipping through memory this quickly, really impt otherwise cache fetch time becomes a major part of the timing
+
+	-> used to place a cache line in memor b4 it is used, thus hiding the latency of teching from off-chip memory
+		-> right time
+		-> right distance
+
+What is the catch?
+	-> compilers haven't caught up to producing efficient SIMD code
+		-> great ways to express the desire for SIMD in code, we won't get the full potential speedup.. yet
+
+		-> for the CPU SIMD project, we are going to investigate the potential speedup using assembly language
+			-> given 2 assembly functions
+
+				1) SimdMul: C[0:len] = A[0:len] * B[0:len]
+
+				2) SimdMulSum: return( sum A[0:len] * B[0:len])
+
+					WARNING:
+				-> these only work on flip using gcc/g++ w/o -O3
+
+
+
+Intel Xeon Phi  (part a)
+-----------------------------------------------------------------------------------
+
+
+Has scalar and vector units
+	-> vector registers are 512 bits wide = 16 floats
+		-> 64 bytes = 1 cache line.. mutliply an entire cache line at once
+
+Can perform:  Fused Multiply-Add (FMA)
+
+	Scientific or Eng comp take form of: D = A + (B * C)
+
+	normal mult-add would be:
+			tmp = B * C
+			D = A + tmp
+
+	Fused does this all at once, when the low-order bits of B*C are ready, they are immediately added into the low-order bits of A at the same time the higher-order bits of B * C are being multiplied.
+
+
+
+
+
+
+Intel Xeon Phi  (part b)
+-----------------------------------------------------------------------------------
+
+Offload mode:
+
+#pragma offload target(mic) in(A:length(NUMS)) in(B:length(NUMS)) out(C:length(NUMS)) out(dtp:length(1))
+{
+	
+	..
+	..
+}
+
+	in -> data to send over
+	out -> data to bring back
+
+	This offloads work to the xeon phi rather than executing on rabbit
+		-> takes advantage of all the extra cores
+
+
+
+Week 6
+======================================================================================
+
+
+-----------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
