@@ -1107,21 +1107,636 @@ Offload mode:
 Week 6
 ======================================================================================
 
+GPU 101
+-----------------------------------------------------------------------------------
 
+Originally for graphics, but were powerful so we began using for computing
+
+Why can get some incredible performance from GPUs?
+	-> back up to get some gpu history
+
+
+How did you gain access to GPU power?
+	3 ways
+		1) write a graphics display program (>= 1985)
+
+		2) write an app that looks like a graphics display pgm, but uses the fragment shader to do some computation (>= 2002)
+
+		3) Write in OpenCL (or CUDA) which looks like C++ (>= 2006)
+
+		graphics is a very parallel thing since we need everything updated at once
+
+
+Why GPU outpacing CPU performance?
+
+	->Gpu chips ment to stream data
+	-> don't need a huge cache since it is jumping around
+	-> doesn't need to do branch prediciton
+	-> doesn't need the logic to process out-of-order instructions like the CPU does
+
+	b/c they do different things
+
+	Today's GPU devices are less task-specific, so the processing can be repurposed (architecture)
+
+
+	Looks like 2880 cores/chip.. is this really true?
+		Zoom far in is a CUDA Core
+			-> FP unit, INT unit.. no processor
+			-> GPU core isn't a CPU core.. no pgm counters, can't access stack
+				-> it just does arithmetic
+		In our case, there is a SM (Streaming Multiprocessor)
+			-> 192 CUDA Cores
+				-> 192 tasks can be handled at once (computations)
+
+Bottom line:
+	-> impossible to directly compare CPU and GPU
+		-> optimized to do diff things
+
+CPU
+-----
+
+General purpose pgming
+Multi-core under user control
+Irregular data structures (non-contiguous memory.. like a linked list)
+Irregular flow control
+
+
+GPU
+-----
+
+Data parallel pgming
+Little user control
+regular data structures  (think contiguous memory)
+regular flow control
+
+
+
+OpenCL equiv of SM = Compute Unit
+OpenCL equiv of CUDA Core = Processing Element
+
+
+GPU Platform can have 1 or more devices
+	-> GPU Device is organized as a grid of Compute Units
+		-> each compute unit is organized as a grid of Processing Elements
+
+
+How can GPUs execute General C code efficiently?
+	-> do what they do best (don't think about unless you have a very intense data parallel app)
+
+	-> expect thousands of threads, not just a few
+
+	-> each thread executes the same program (called the kernel), but ops on a diff small piece of the overall data
+
+	-> many waking up at the same time, hoping to work on a small piece of the overall problem
+
+	-> opencl has built in fns so that each thread can figure out which thread # it is, thus what part of the overall job it is supposed to do
+
+	-> when thread gets blocked somehow, proc switches to exe'ing another thread to work on
+
+
+
+Open CL - A
+-----------------------------------------------------------------------------------
+
+Consists of a c/c++ callable api and a c-ish pgm lang
+	-> runs on a ton of stuff
+
+-> can share data and interoperate with OpenGL
+-> JS implementations of these (such as WebCL)
+-> GUP does not have stack, so no recursion and no function calls (no pointers)
+
+Each vendor has a specific driver that compiles the code to their necessary code for their device
+
+How to use?
+	-> use normal compiler & linker for your c/c++ code
+	-> opencl code c/l on gpu
+
+
+C/C++:
+void ArrayMult( int n, float *a, float *b, float *c)
+{
+	for ( int i = 0; i < n; i++ )
+	c[ i ] = a[ i ] * b[ i ];
+}
+
+
+OpenCL:
+
+kernel
+void
+ArrayMult( global float *dA, global float *dB, global float *dC)
+{
+	int gid = get_global_id ( 0 );
+	dC[gid] = dA[gid] * dB[gid];
+}
+
+
+supports built in SIMD constructs:
+	float4 f, g;
+
+
+An OpenCL program is organized as a grid of Work-Groups (software vs the hardware name Compute Units)
+	-> Each W-G organized as a grid of Work-Items  (sw Processing Element equiv)
+
+	-> each W-G has some local memory and multiple work items to work on
+		-> each of which has some private memory
+
+	-> all W-G have a shared global memory
+
+
+
+Rules
+
+
+Threads can:
+	-> share mem (local to WG) w/ other threads in same W-G
+	-> synchronize w/ other threads in the same WG
+
+Global and Constant memory:
+	-> accessible by all threads in all WGs
+	-> often cached inside a WG
+
+Each thread:
+	-> has registers and private mem
+
+Each WG:
+	-> has a max number of registers it can use
+		-> div'd equally among all its threads
+
+
+
+
+Open CL - B  (real code!)
+-----------------------------------------------------------------------------------
+
+Querying the # of platforms (usually 1)
+
+
+cl_uint numPlatforms;
+status = clGetPlatformIDs( 0, NULL, &numPlatforms );
+if( status != CL_SUCCESS )
+	fprintf( stderr, "clGetPlatformIDs failed (1)\n" );
+
+fprintf( stderr, "Number of Platforms = %d\n", numPlatforms );
+
+cl_platform_id * platforms = new cl_platform_id[ numPlatforms ];
+status = clGetPlatformIDs( numPlatforms, platforms, NULL );
+if( status != CL_SUCCESS )
+	fprintf( stderr, "clGetPlatformIDs failed (2)\n" );
+
+^ this might be part of the code from printinfo
+
+				How many to get, where to put them, how many total there are
+status = clGetPlatformIDs( 0, NULL, &numPlatforms );	// how many do we have?
+status = clGetPlatformIDs( numPlatforms, platforms, NULL );		// go get the info
+
+
+Grab the code from class website to print the CL error to make our lives easier.
+	errorcodes.cpp.. grabbed and saved to pc
+
+
+// find out how many devices are attached to each platform and get their ids:
+
+status = clGetDeviceIDs( platform, CL_DEVICE_TYPE_ALL, 0, NULL, &numDevices );
+
+devices = new cl_device_id[ numDevices ];
+
+status = clGetDeviceIDs( platform, CL_DEVICE_TYPE_ALL, numDevices, devices, NULL );
+
+
+
+// just getting the gpu device:
+
+cl_device_id device;
+status = clGetDeviceIDs( platform, CL_DEVICE_TYPE_GPU, 1, &device, NULL );
+
+
+
+
+Query to see what extensions are supported on this device:
+
+size_t extensionSize;
+
+clGetDeviceInfo( device, CL_DEVICE_EXTENSIONS, 0, NULL, &extensionSize );
+char *extensions = new char [extensionSize];
+clGetDeviceInfo( devices, CL_DEVICE_EXTENSIONS, extensionSize, extensions, NULL );
+
+fprintf( stderr, "\nDevice Extensions:\n" );
+for( int i = 0; i < (int)strlen(extensions); i++ )
+{
+	if( extensions[ i ] == ' ' )
+		extensions[ i ] = '\n';
+}
+fprintf( stderr, "%s\n", extensions );
+delete [ ] extensions;
+
+Extensions we care about:
+	cl_khr_gl_sharing  // this is the big one we ar elooking for. OpenCL can interoperate with OpenGL
+
+	cl_khr_fp64 	// handy as well.  OpenCL system can support 64-bit floating point (i.e. double precision)
+
+
+
+
+
+
+Open CL - C
+-----------------------------------------------------------------------------------
+
+Steps in creating and running an open cl program
+
+1. Program header
+2. Allocate the host memory buffers
+3. Create an OpenCL context
+4. Create an OpenCL command queue
+5. Allocate the device memory buffers
+6. Write the data from the host buffers to the device buffers
+7. Read the kernel code from a file
+8. Compile and link the kernel code
+9. Create the kernel object
+10.Setup the arguments to the kernel object
+11.Enqueue the kernel object for execution
+12.Read the results buffer back from the device to the host
+13.Clean everything up
+
+
+
+#include "cl.h"  // for open CL   (step 1)
+
+
+// allocate the host memory buffers:  (step 2)
+
+float * hA = new float [ NUM_ELEMENTS ];
+float * hB = new float [ NUM_ELEMENTS ];
+float * hC = new float [ NUM_ELEMENTS ];
+
+// the above could have also been done: float hA[ NUM_ELEMENTS ];
+	// global mem and the heap typical have lots more space than the stack, so we don't want
+	// to allocate a large array like this as a local variable
+
+
+
+// fill the host memory buffers:
+
+for( int i = 0; i < NUM_ELEMENTS; i++ )
+{
+	hA[ i ] = hB[ i ] = sqrtf( (float) i );
+}
+
+// array size in bytes (will need this later):
+
+size_t dataSize = NUM_ELEMENTS * sizeof( float );
+
+// opencl function return status:
+
+cl_int status; 		// test against CL_SUCCESS
+
+
+
+
+// create an open cl context (step 3)
+
+// create a context:
+
+cl_context context = clCreateContext( NULL, 1, &device, NULL, NULL, &status );
+
+	// properties, one device, this device, callback, pass in user data, returned status
+
+
+
+
+// create a command queue:  (step 4)
+
+cl_command_queue cmdQueue = clCreateCommandQueue( context, device, 0, &status );
+	
+	// the context, the device, properties, returned status
+
+
+
+// allocate memory buffers on the device: 	(step 5)
+
+cl_mem dA = clCreateBuffer( context, CL_MEM_READ_ONLY, dataSize, NULL, &status );
+cl_mem dB = clCreateBuffer( context, CL_MEM_READ_ONLY, dataSize, NULL, &status );
+cl_mem dC = clCreateBuffer( context, CL_MEM_WRITE_ONLY, dataSize, NULL, &status );
+
+	// context, how this buffer is restricted, # bytes, buffer data already allocated, returned status
+
+
+	-> read and write terminology wrt the OpenCL device
+		-> CL_MEM_READ_ONLY means that the OCL device can only get this data
+			-> can't send it back to the host CPU
+		-> other options
+			-> CL_MEM_WRITE_ONLY
+			-> CL_MEM_READ_WRITE
+
+
+
+write that data from the host buffers to the device buffers
+
+// enqueue the 2 commands to write data into the device buffers: (step 6)
+
+status = clEnqueueWriteBuffer( cmdQueue, dA, CL_FALSE, 0, dataSize, hA, 0, NULL, NULL );
+status = clEnqueueWriteBuffer( cmdQueue, dB, CL_FALSE, 0, dataSize, hB, 0, NULL, NULL );
+
+	// command queue, device buffer, want to block until done?, offset, # bytes, host buffer, # events, event wait list, event object
+
+
+Open CL - D
 -----------------------------------------------------------------------------------
 
 
+kernel		// can be fired off from the C program
+void  				// local gpu addrs of these parms
+ArrayMult( global const float *dA, global const float *dB, global float *dC )
+{
+	int gid = get_global_id( 0 );   // gid = which ele we are dealing w/ right now
+						// which dim's index are we fetching? 
+						// 0 = X, 1 = Y, 2 = Z
+						// 1D prob, only doing X
+
+	dC[gid] = dA[gid] * dB[gid];
+}
 
 
 
 
 
+// read the kernel code from a file into a char array  (step 7)
+
+const char *CL_FILE_NAME = { “arraymult.cl" };
+. . .
+
+FILE *fp = fopen( CL_FILE_NAME, "r" );  // "r" shoudl work since the .cl file is pure ASCII text
+			// but some ppl report that it doesn't work unless you use "rb"
+			// watch out for the '\r' + '\n' problem!... see below
+if( fp == NULL )
+{
+	fprintf( stderr, "Cannot open OpenCL source file '%s'\n", CL_FILE_NAME );
+	return 1;
+}
+
+// read the characters from the opencl kernel program:
+
+fseek( fp, 0, SEEK_END );
+size_t fileSize = ftell( fp );		// where are we (how many bytes in)
+fseek( fp, 0, SEEK_SET );
+char *clProgramText = new char[ fileSize+1 ]; 		// allocate big long string
+size_t n = fread( clProgramText, 1, fileSize, fp );  // read stuff into it
+clProgramText[fileSize] = '\0';
+fclose( fp );
+
+
+
+.cl on windows
+	-> have strong unexplainable problems with sch scripts, or cpp/cl pgms
+		-> windows inserts \r for carriage return
+
+
+		test:
+			od -c loop.csh
+
+			get rid of c rtns:
+				tr -d '\r' < loop.csh > loop1.csh
+					-> then run loop1.csh
+
+			on some systems:
+
+			dox2unix < loop.csh > loop1.csh
+
+
+compile and link kernel code
+
+// create the kernel program on the device:   (step 8)
+
+char * strings [ 1 ];  		// an array of strings
+strings[0] = clProgramText;
+cl_program program = clCreateProgramWithSource( context, 1, (const char **)strings, NULL, &status );
+delete [ ] clProgramText;
+
+
+// build the kernel program on the device:
+
+char *options = { "" };
+status = clBuildProgram( program, 1, &device, options, NULL, NULL );
+if( status != CL_SUCCESS )
+{  				// retrieve and print the error messages:
+	size_t size;
+	clGetProgramBuildInfo( program, devices[0], CL_PROGRAM_BUILD_LOG, 0, NULL, &size );
+	cl_char *log = new cl_char[ size ];
+	clGetProgramBuildInfo( program, devices[0], CL_PROGRAM_BUILD_LOG, size, log, NULL );
+	fprintf( stderr, "clBuildProgram failed:\n%s\n", log );
+	delete [ ] log;
+}
 
 
 
 
 
+Open CL - E
+-----------------------------------------------------------------------------------
 
+// create the kernel object  (step 9)
+
+cl_kernel kernel = clCreateKernel( program, “ArrayMult", &status );
+
+
+// setup the args to the kernel obj  (step 10)
+
+		// kernel, arg #, cl_mem ptr, address
+status = clSetKernelArg( kernel, 0, sizeof(cl_mem), &dA );
+status = clSetKernelArg( kernel, 1, sizeof(cl_mem), &dB );
+status = clSetKernelArg( kernel, 2, sizeof(cl_mem), &dC );
+		// these are from ArrayMult function where the parms were ptrs
+
+
+
+
+// enqueue the kernel obj for execution   (step 11)
+
+size_t globalWorkSize[ 3 ] = { NUM_ELEMENT, 1, 1 };
+size_t localWorkSize[ 3 ] = { LOCAL_SIZE, 1, 1 } ;
+
+status = clEnqueueBarrier( cmdQueue );
+
+double time0 = omp_get_wtime( );
+
+status = clEnqueueNDRangeKernel( cmdQueue, kernel, 1, NULL, globalWorkSize, localWorkSize, 0, NULL, NULL );
+		// cmd queue, kernel, # dimensions, global work offset (always null), global work size, local work size, # events, event wait list, event object
+
+status = clEnqueueBarrier( cmdQueue );
+
+double time1 = omp_get_wtime( );
+
+
+
+Work groups, local ids, and global ids
+	# WGs = GlobalIndexSpaceSize / WorkGroupSize
+
+
+
+Figure out what thread you are and what your thread environment is like:
+
+uint get_work_dim( ) ;
+size_t get_global_size( uint dimindx ) ;
+size_t get_global_id( uint dimindx ) ;  		// we have seen this one
+size_t get_local_size( uint dimindx ) ;		// args 0, 1, or 2
+size_t get_local_id( uint dimindx ) ;
+size_t get_num_groups( uint dimindx ) ;
+size_t get_group_id( uint dimindx ) ;
+size_t get_global_offset( uint dimindx ) ;
+
+
+
+// read the results buffer back from the device to the host   (step 12)
+
+	NOTE: don't do this right away w/o a barrier or something since it reads back right away
+
+status = clEnqueueReadBuffer( cmdQueue, dC, CL_TRUE, 0, dataSize, hC, 0, NULL, NULL );
+	// command queue, device buffer, want to block until done, offset, # bytes, host buffer, # events, event wait list, event object
+
+
+
+
+// clean everything up:    (step 13)
+
+clReleaseKernel( kernel );
+clReleaseProgram( program );
+clReleaseCommandQueue( cmdQueue );
+clReleaseMemObject( dA );
+clReleaseMemObject( dB );
+clReleaseMemObject( dC );
+
+delete [ ] hA;
+delete [ ] hB;
+delete [ ] hC;
+
+
+
+
+writing the .cl pgms binary code:
+
+size_t binary_sizes;
+status = clGetProgramInfo( Program, CL_PROGRAM_BINARY_SIZES, 0, NULL, &binary_sizes );
+
+size_t size;
+status = clGetProgramInfo( Program, CL_PROGRAM_BINARY_SIZES, sizeof(size_t), &size, NULL );
+
+unsigned char *binary = new unsigned char [ size ];
+status = clGetProgramInfo( Program, CL_PROGRAM_BINARIES, size, &binary, NULL );
+
+FILE *fpbin = fopen( "particles.nv", "wb" );
+if( fpbin == NULL )
+{
+	fprintf( stderr, "Cannot create 'particles.bin'\n" );
+}
+else
+{
+	fwrite( binary, 1, size, fpbin );
+	fclose( fpbin );
+}
+delete [ ] binary;
+
+// you have to import the binary code back in at step 8 though..
+
+
+PROJECT 4 NOTES
+---------------------------------------------------------------------------------
+
+video
+----------------------------------
+
+month by month grain-growing simulation
+	-> grain affected by temp, precip, # of "graindeer" to eat it
+
+	-> given "states" and basic one month parms
+
+
+3 things going
+	i) deer
+	ii) grain
+	iii) watcher thread  (determine rain, temp, printing stuff)
+	iv) prj asks for 4th quantity
+		-> interacts with deer and grain
+		-> recommended to get sim working w/o it first
+		-> we know number of threads ahead of time (3 or 4)
+			-> good use for sections!
+				Each section can have a function which you call the thing you are monitoring
+					-> Graindeer, Grain, Watcher, MyAgent
+
+	Make sure to watch your barriers when updating the states, then printing states
+
+Quantity interactions:
+	i) if # graindeer exceeds the number of inches of height of the grain at the end of the month, decrease the graindeer by 1
+
+	ii) if # grainder is less than this value at EOM, increase GD by 1
+
+
+use rand_r()
+	-> not rand()
+
+
+use cm and degrees C to make everything look cleaner
+	cm = inches * 2.54
+	C = (5/9.)*(F-32)
+
+
+
+
+text
+----------------------------------
+
+Given some functions to rtn a random number 
+
+
+
+#include <stdlib.h>
+
+unsigned int seed = 0;  // a thread-private variable
+float x = Ranf( &seed;, -1.f, 1.f );
+
+. . .
+
+float
+Ranf( unsigned int *seedp,  float low, float high )
+{
+        float r = (float) rand_r( seedp );              // 0 - RAND_MAX
+
+        return(   low  +  r * ( high - low ) / (float)RAND_MAX   );
+}
+
+
+int
+Ranf( unsigned int *seedp, int ilow, int ihigh )
+{
+        float low = (float)ilow;
+        float high = (float)ihigh + 0.9999f;
+
+        return (int)(  Ranf(seedp, low,high) );
+}
+
+
+
+
+Turn in your code and your PDF writeup. Be sure your PDF is a file all by itself, that is, not part of any zip file. Your writeup will consist of:
+
+ 
+
+1)  What your own-choice quantity was and how it fits into the simulation.
+ 
+
+2)  A table showing values for temperature, precipitation, number of graindeer, height of the grain, and your own-choice quantity as a function of month number.
+ 
+
+3)  A graph showing temperature, precipitation, number of graindeer, height of the grain, and your own-choice quantity as a function of month number. Note: if you change the units to °C and centimeters, the quantities might fit better on the same set of axes.
+
+cm = inches * 2.54 
+°C = (5./9.)*(°F-32)
+
+This will make your heights have larger numbers and your temperatures have smaller numbers.
+
+ 
+
+4)  A commentary about the patterns in the graph and why they turned out that way. What evidence in the curves proves that your own quantity is actually affecting the simulation?
 
 
 
