@@ -2024,6 +2024,75 @@ for( int i = 0; i < numWorkgroups; i++ )
 
 
 
+OpenCL Assembly
+-----------------------------------------------------------------------------------
+
+For graphics, we will typically not align a point that has exceeded the bounds, we just send it off anyway
+
+// NVIDIA OpenCL assembly language sample
+
+ld.global.v4.f32        {%f188, %f189, %f190, %f191}, [%r1]; 	//  load dPobj[ gid]
+ld.global.v4.f32        {%f156, %f157, %f158, %f159}, [%r2];	//  load   dVel[ gid]
+
+mov.f32         %f17, 0f3DCCCCCD;		// put DT (a constant) → register f17
+
+fma.rn.f32      %f248, %f156, %f17, %f188;		// (p + v*DT).x → f248
+fma.rn.f32      %f249, %f157, %f17, %f189;		 // (p + v*DT).y → f249
+fma.rn.f32      %f250, %f158, %f17, %f190; 		// (p + v*DT).z → f250
+
+mov.f32         %f18, 0fBD48B43B;		// .5 * G.y* DT * DT (a constant) → f18
+mov.f32         %f19, 0f00000000;		// 0., for .x and .z (a constant) → f19
+
+add.f32         %f256, %f248, %f19;		// (p + v*DT).x + 0. → f256
+add.f32         %f257, %f249, %f18;		// (p + v*DT).y + .5 * G.y* DT * DT → f257
+add.f32         %f258, %f250, %f19;		// (p + v*DT).z + 0. → f258
+
+mov.f32         %f20, 0fBF7AE148;		// G.y* DT (a constant) → f20
+
+add.f32         %f264, %f156, %f19;		// v.x+ 0. → f264
+add.f32         %f265, %f157, %f20;		// v.y+ G.y* DT → f265
+add.f32         %f266, %f158, %f19;		// v.z+ 0. → f266
+
+
+made points, vectors, and colors as float4s b/c so many things in graphics come in 4s
+	-> x,y,z,w   
+	-> r,g,b,a   .. color
+	-> s, t, p, q .. texture
+
+
+floatn's were not SIMD'd
+	-> NVIDIA doesn't support vector operations in their GPUs
+
+
+FN calls were all in-lined
+	-> opencl says "no recursion" which implies "no stack"
+
+
+Defining as constant was a mistake, got correct results, but didn't take advantage
+	-> changing them to const threw compiler errors b/c of global scope (in body)
+
+	-> changing to const and moving them into the body of the kernel FN Partical did result in compiler optimizations
+
+
+sqrt (x^2 + y^2 + z^2) assembly code is amazingly involved
+	-> fast_sqrt(), fast_normalize(), and fast_length() when possible
+
+
+compiler did not do a good job with expressions-in-common
+
+
+fused-multiply-add (fma) instruction (4-argument) is very important
+	-> d = a*b + c .. one instruction in hardware
+		-> compiler took great advantage of it
+
+
+		
+
+
+
+
+
+
 
 
 
