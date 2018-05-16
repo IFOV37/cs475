@@ -1746,12 +1746,280 @@ This will make your heights have larger numbers and your temperatures have small
 Week 7
 ======================================================================================
 
-
+OpenCL Events
 -----------------------------------------------------------------------------------
 
+OpenCL acts as asynchronously as it possibly can
+
+
+// enqueue the kernel obj for execution   (step 11)
+
+size_t globalWorkSize[ 3 ] = { NUM_ELEMENT, 1, 1 };
+size_t localWorkSize[ 3 ] = { LOCAL_SIZE, 1, 1 } ;
+
+
+status = clEnqueueNDRangeKernel( cmdQueue, kernel, 1, NULL, globalWorkSize, localWorkSize, 0, NULL, NULL );
+		// cmd queue, kernel, # dimensions, global work offset (always null), global work size, local work size, # events, event wait list, event object
+
+	events are at 0, NULL, NULL
+		// # of events
+			// list of events to wait for
+				// event object to throw an event when we are done
+
+cl_event waitKernelC;
+
+status = clEnqueueNDRangeKernel( cmdQueue, kernel, 1, NULL, globalWorkSize, localWorkSize, 0, NULL, &waitKernelC);
+	// events to wait for.. &waitKernelC = event being created
+
+
+waiting for events:
+
+cl_event waitKernelA, waitKernel B
+
+. . .
+
+cl_event dependencies[ 2 ];
+
+dependencies[ 0 ] = waitKernelA;
+dependencies[ 1 ] = waitKernelB;
+
+status = clEnqueueNDRangeKernel( cmdQueue, kernelC, 1, NULL, globalWorkSize, localWorkSize, 2, dependencies, NULL );
+	// waiting for 2 events, list of dependencies
+
+
+wait on 1 event:
+
+cl_event waitKernelA, waitKernel B
+
+. . .
+
+status = clEnqueueNDRangeKernel( cmdQueue, kernelC, 1, NULL, globalWorkSize, localWorkSize, 1, &waitKernelA, NULL );
 
 
 
+Placing a barrier in the command queue:
+
+status = clEnqueueBarrier( cmdQueue );
+	-> does not complete until all cmds enqueued b4 it have completed
+
+	-> could enqueue the write buffers, barrier, execute kernel, barrier, etc...
+
+
+
+Placing an event marker in the cmd queue:
+
+cl_event waitMarker;
+status = clEnqueueMarker( cmdQueue, &waitMarker );
+
+	-> just like barrier, but it can throw an event to be waited for
+
+
+Waiting for events w/o enqueuing another cmd:
+
+status = clWaitForEvents( 2, dependencies );
+
+	-> this BLOCKS until the spec'd events are thrown - use carefully
+
+
+
+Prof likes doing this:
+
+// wait until all queued tasks have taken place:
+void Wait( cl_command_queue queue )
+{
+	cl_event wait;
+	cl_int status;
+
+	status = clEnqueueMarker( queue, &wait );
+	if( status != CL_SUCCESS )
+		fprintf( stderr, "Wait: clEnqueueMarker failed\n" );
+	
+	status = clWaitForEvents( 1, &wait );  		// blocks until everything is done!
+	if( status != CL_SUCCESS )
+		fprintf( stderr, "Wait: clWaitForEvents failed\n" );
+}
+
+	-> call this b4 starting the timer, b4 ending the timer, and b4 using data from an array returned from OpenCL
+
+
+
+Events can work the same way as getting the various configuraiton IDs like in the original OpenCL lecture..
+
+
+cl_int eventStatus;
+status = clGetEventInfo( waitKernelC, CL_EVENT_COMMAND_EXECUTION_STATUS, sizeof(cl_int),
+&eventStatus, NULL );
+
+	// specify the CL_EVENT_...
+		// returns something like CL_QUEUED, CL_SUBMITTED, CL_RUNNING, CL_COMPLETE
+
+	-> nice way tot check on event statuses w/o blocking
+	-> could put in a loop to go get some other work done in b/w calls
+
+
+
+
+OpenCL Reduction
+-----------------------------------------------------------------------------------
+Not built into opencl, but we are going to learn in case having to do it
+
+	A * B product goes to local memory (shared between all work items in the work group)
+
+	WG will return a sum of products C rtnd to the host (global mem) to finish
+
+
+The below shrinks from 8 work items in a work group..
+
+barrier..
+Thread #0:
+prods[ 0 ] += prods[ 1 ];
+
+Thread #2:
+prods[ 2 ] += prods[ 3 ];
+
+Thread #4:
+prods[ 4 ] += prods[ 5 ];
+
+Thread #6:
+prods[ 6 ] += prods[ 7 ];
+
+
+This is to the right of the above:
+
+barrier..
+
+Thread #0:
+prods[ 0 ] += prods[ 2 ];
+
+
+
+
+
+Thread #4:
+prods[ 4 ] += prods[ 6 ];
+
+
+barrier..
+
+Further to the right:
+
+Thread #0:
+prods[ 0 ] += prods[ 4 ];
+
+
+size_t numWorkGroups = NUM_ELEMENTS / LOCAL_SIZE;
+
+...
+
+float * hA = new float [ NUM_ELEMENTS ];
+float * hB = new float [ NUM_ELEMENTS ];
+float * hC = new float [ numWorkGroups ];   // this is different from seeing this prior
+size_t abSize = NUM_ELEMENTS * sizeof(float);
+size_t cSize = numWorkGroups * sizeof(float);  // this is different as well
+
+...
+
+cl_mem dA = clCreateBuffer( context, CL_MEM_READ_ONLY, abSize, NULL, &status );
+cl_mem dB = clCreateBuffer( context, CL_MEM_READ_ONLY, abSize, NULL, &status );
+cl_mem dC = clCreateBuffer( context, CL_MEM_WRITE_ONLY, cSize, NULL, &status );   // diff too
+			// c is a group of scalars
+
+...
+
+status = clEnqueueWriteBuffer( cmdQueue, dA, CL_FALSE, 0, abSize, hA, 0, NULL, NULL );
+status = clEnqueueWriteBuffer( cmdQueue, dB, CL_FALSE, 0, abSize, hB, 0, NULL, NULL );
+
+...
+
+cl_kernel kernel = clCreateKernel( program, "ArrayMultReduce", &status );  // diff kernel FN
+
+...
+
+status = clSetKernelArg( kernel, 0, sizeof(cl_mem), &dA );
+status = clSetKernelArg( kernel, 1, sizeof(cl_mem), &dB );
+status = clSetKernelArg( kernel, 2, sizeof(float), NULL );  	// local “prods” array – one per work-item
+status = clSetKernelArg( kernel, 3, sizeof(cl_mem), &dC );
+
+
+
+
+Args to the Kernel
+
+status = clSetKernelArg( kernel, 0, sizeof(cl_mem), &dA );
+status = clSetKernelArg( kernel, 1, sizeof(cl_mem), &dB );
+status = clSetKernelArg( kernel, 2, sizeof(float), NULL );  	// local “prods” array – one per work-item
+status = clSetKernelArg( kernel, 3, sizeof(cl_mem), &dC );
+
+
+
+kernel void
+ArrayMultReduce( global const float *dA, global const float *dB, local float *prods, global float *dC )
+{
+	int gid = get_global_id( 0 );  			// 0 .. total_array_size-1
+	int numItems = get_local_size( 0 );  	// # work-items per work-group
+	int tnum = get_local_id( 0 );  			// thread (i.e., work-item) number in this        												work-group
+											// 0 .. numItems-1
+	int wgNum = get_group_id( 0 );  	// which work-group number this is in
+
+	prods[ tnum ] = dA[ gid ] * dB[ gid ];  	// multiply the two arrays together
+
+	// now add them up – come up with one sum per work-group
+	// it is a big performance benefit to do it here while “prods” is still available – and is local
+	// it would be a performance hit to pass “prods” back to the host then bring it back to the device for reduction
+
+
+
+code looks like this:
+
+kernel void
+ArrayMultReduce( … )
+	int gid = get_global_id( 0 );
+	int numItems = get_local_size( 0 );
+	int tnum = get_local_id( 0 ); // thread number
+	int wgNum = get_group_id( 0 ); // work-group number
+	prods[ tnum ] = dA[ gid ] * dB[ gid ];
+
+
+
+// all threads execute this code simultaneously:
+for( int offset = 1; offset < numItems; offset *= 2 )
+{
+	int mask = 2*offset - 1;
+	barrier( CLK_LOCAL_MEM_FENCE ); // wait for completion
+	if( ( tnum & mask ) == 0 )
+	{
+		prods[ tnum ] += prods[ tnum + offset ];
+	}
+}
+
+barrier( CLK_LOCAL_MEM_FENCE );
+if( tnum == 0 )
+	dC[ wgNum ] = prods[ 0 ];
+
+
+
+In host pgm:
+
+Wait( cmdQueue );
+double time0 = omp_get_wtime( );
+
+status = clEnqueueNDRangeKernel( cmdQueue, kernel, 1, NULL, globalWorkSize, localWorkSize,
+0, NULL, NULL );
+PrintCLError( status, "clEnqueueNDRangeKernel failed: " );
+
+Wait( cmdQueue );
+double time1 = omp_get_wtime( );
+
+status = clEnqueueReadBuffer( cmdQueue, dC, CL_TRUE, 0, numWorkGroups*sizeof(float), hC,
+0, NULL, NULL );
+PrintCLError( status, "clEnqueueReadBufferl failed: " );
+Wait( cmdQueue );
+
+float sum = 0.;
+for( int i = 0; i < numWorkgroups; i++ )
+{
+	sum += hC[ i ];
+}
 
 
 
