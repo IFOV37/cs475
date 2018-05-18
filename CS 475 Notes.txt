@@ -2086,6 +2086,10 @@ fused-multiply-add (fma) instruction (4-argument) is very important
 		-> compiler took great advantage of it
 
 
+Project 5 notes
+------------------------------------------------------------------
+
+
 		
 
 
