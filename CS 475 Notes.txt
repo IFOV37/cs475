@@ -2090,7 +2090,38 @@ Project 5 notes
 ------------------------------------------------------------------
 
 
-		
+SIMD project, no multithreading
+	-> every processor can do SSE
+
+
+Going to be using assembly.. code not portable
+
+Requirements
+		-> really 4 exps
+			i) array mult w/ simd
+			ii) array mult w/o simd
+			iii) array mult + reduction w/ simd
+			iv) array mult + reduction w/o simd
+
+
+	1) run array mult timing exp with SIMD SSE code
+		-> run same exp w/ own C/C++ array mult code
+
+	2) run arra mult + reduction
+
+	3)  suggested array sizes (1k to 32M)
+
+	4) feel free to do avg and peak to verify the trials are good
+
+	5) table of # exps on top, # array sizes going down
+		-> looking for speedup
+
+			S = Psse/Pnon-sse  =  Tnon-sse/Tsse
+				P = performance, T = Elapsed Time
+
+	then report questions/data
+
+	
 
 
 
