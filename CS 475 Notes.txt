@@ -2124,6 +2124,214 @@ Requirements
 	
 
 
+Week 8
+======================================================================================
+
+OpenCL / OpenGL Vertex Buffer Interoperability  A
+-----------------------------------------------------------------------------------
+
+OpenGL data vertex buffer
+	-> data put in here in 1 of 2 ways
+	-> if it needs to be shared, we are going to let open GL write it
+	-> not shared (open cl needs), done through normal open cl device memory mechanism
+
+See slide 2 in notes for graph
+
+
+OpenGL
+	the beginning..
+	1) sending large amts of small pieces of info is less efficient than sending small amounts of larg pieces of info
+
+	2) the vertex coords were being listed in the CPU and were being transferred to the GPU every drawing pass
+
+	3) some vertices were listed twice
+
+	Rendering Context
+		-> contains all the characteristic info necessary to produce an image from geometry
+			-> includes transformations, colors, lighting, textures, whr to display, etc..
+
+
+How do you create a special OpenGL Array Buffer called a Vertex Buffer Object?
+	-> OGL objs are pointed to by an unsigned integer handle (instead of by their address like C++)
+		-> can assign a value for this handle yourself (not recommended) or have OGL gen one 1 for you (unique)
+
+		GLunit buf;
+		glGenBuffers(1, &buf);
+
+			-> doesn't allocate mem for buffer obj yet, only acquires handle
+			-> to allocate, need to bind this handle to the Context
+
+	OGL obj = pretty much the same as C++ obj
+
+	Ex:
+			struct DataArrayBuffer
+			{
+				enum dataType;
+				void * memStart;
+				int memSize;
+			};
+
+		-> then, create any # of Buffer Obj instances, each w/ its own chars encap'd w/in it
+		-> when you want to make that combo current
+			-> point the ArrayBuffer ele of the Context to that entire struct ("bind")
+			-> when you bind an obj, all its info comes with it
+
+		glBindBuffer( GL_ARRAY_BUFFER, buf );
+
+		-> attaching or docking may be a more appropriate term than binding
+
+		glBufferData( GL_ARRAY_BUFFER, numBytes, data, usage );
+			-> write data into the [currently docked] array vertex buffer
+
+			Can be thought of like this:
+				Context.ArrayBuffer.memStart = CopyToGpuMemory( data, numBytes );
+				Context.ArrayBuffer.memSize = numBytes;
+
+		-> any time you want to use a diff V.Buffer
+			-> just rebind it
+				Ex: float *data = Context.ArrayBuffer.memStart;  // think of this way
+				glBindBuffer( GL_ARRAY_BUFFER, buf );  // happens like this
+
+
+
+
+OpenCL / OpenGL Vertex Buffer Interoperability  B
+-----------------------------------------------------------------------------------
+	-> if you haven't noticed, all OGL fn's begin with little gl
+
+Vertex Buffers: putting data in the buffer object
+
+	glBufferData( type, numBytes, data, usage );
+
+	type = type of buffer obj this is
+		GL_ARRAY_BUFFER to store floating pt vertices, normals, colors, and texture coords
+
+	numBytes = # of bytes to store in all. Not the # of #s, but the # of bytes
+
+	data = memory address of (i.e. ptr to) the data to be transferred to the graphics card
+		-> can be NULL, and the data can be transferred later
+
+	usage is a hint to how the data will be sued: GL_xxx_yyy
+
+	where xxx can be:
+		STREAM 		this buffer will be written lots
+		STATIC 		this buffer will be written seldom and read seldom
+		DYNAMIC 	this buffer will be written often and used often
+	and yyy can be:
+		DRAW 		this buffer will be used for drawing
+		READ 		this buffer will be copied into
+		COPY 		not a real need for now, but someday…
+
+				GL_STATIC_DRAW is the most common usage
+
+
+Vertex Buffers
+	
+	1) fill the arrays
+
+		GLfloat Vertices[ ][3] =
+		{
+			{ 1., 2., 3. },		// typically from a file
+			{ 4., 5., 6. },
+			. . .
+		};
+		
+		int numVertices = sizeof(Vertices) / ( 3*sizeof(GLfloat) );
+
+
+	2) create the buffers and fill them
+
+		glGenBuffers( 1, &buf );  // create hndl
+		glBindBuffer( GL_ARRAY_BUFFER, buf );	// dock (bind)
+		glBufferData( GL_ARRAY_BUFFER, 3*sizeof(GLfloat)*numVertices, Vertices, GL_STATIC_DRAW ); 	// write data into currently bound (docked) buffer
+
+
+	3) activate the array types that you will use
+
+		glEnableClientState(type)
+			type coudl be any of:
+				-> GL_VERTEX_ARRAY
+				-> GL_COLOR_ARRAY
+				-> GL_NORMAL_ARRAY
+				-> GL_TEXTURE_COORD_ARRAY
+
+			-> call as many times as you need to enable all the arrays you will need
+
+		to deactivate a type, call
+			glDisableClientState(type)
+
+	4) to draw, first bind the buffers
+		glBindBuffer( GL_ARRAY_BUFFER, buf );
+
+	5) specify the data
+
+		glVertexPointer( size, type, stride, rel_address);
+		glColorPointer( size, type, stride, rel_address);
+		glNormalPointer( type, stride, rel_address);
+		glTexCoordPointer( size, type, stride, rel_address);
+
+		size = spatial dimension, can be 2, 3, or 4
+		type can be:
+			GL_SHORT
+			GL_INT
+			GL_FLOAT
+			GL_DOUBLE
+
+		stride is the byte offset b/w consecutive entries in the array (0 means tightly packed)
+
+		rel_address (4th arg) is the relative byte address from the start of the buffer where the 1st ele of this part of the data lives
+
+		generic idea: gl*Pointer( size, type, stride, offset);
+
+		vertex buffer obj can be stored either as "packed" or "interleaved"
+
+		Packed:
+			glVertexPointer( 3, GL_FLOAT, 3*sizeof(GLfloat), 0 );
+			glColorPointer( 3, GL_FLOAT, 3*sizeof(GLfloat), 3*numVertices*sizeof(GLfloat));
+
+				vertex data block
+				color data block
+
+		Interleaved:
+			glVertexPointer( 3, GL_FLOAT, 6*sizeof(GLfloat), 0 );
+			glColorPointer( 3, GL_FLOAT, 6*sizeof(GLfloat), 3*sizeof(GLfloat) );
+
+				vertex data block
+				color data block
+				vertex data block
+				color data block
+				vertex data block
+				color data block
+
+	6) specify the connections
+		GLfloat Vertices[ ][3] =
+		{
+			{ x0, y0, z0 },
+			{ x1, y1, z1 },
+			{ x2, y2, z2 },
+			{ x3, y3, z3 },
+			{ x4, y4, z4 },
+			{ x5, y5, z5 }
+		};
+
+		int numVertices = sizeof(Vertices) / ( 3*sizeof(GLfloat) );
+
+		glDrawArrays( GL_TRIANGLES, 0, numVertices );
+			-> whatever is bound, go draw that
+
+
+		Can write data directly into a vertex buffer
+			see slide 21 with glMapBuffer and glUnMapBuffer
+
+
+
+
+
+OpenCL / OpenGL Vertex Buffer Interoperability  C
+-----------------------------------------------------------------------------------
+
+
+
 
 
 
