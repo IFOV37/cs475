@@ -2336,6 +2336,33 @@ OpenCL / OpenGL Vertex Buffer Interoperability  C
 
 
 
+Project 6 Notes
+------------------------------------------------
+
+Start with first.cpp and first.cl
+	-> already does multiplication for the arrays
+
+	-> run global work sizes from 1k to 8M
+	-> run local work sizes from 1 to 1024
+
+	Perf marks: MgaMultiplies Per Second and MegaMultiply-Adds Per Second
+
+	-> 2 graphs for each.. 
+		1) perf vs global work size, series contant local 
+		2) perf vs local work size, series constant global
+
+write the multiply+reduce and do the same
+
+Do this again (#1), but with a reduction: Sum = summation{ A[:]*B[:] };
+	-> benchmark that against input array size (global work size)
+		-> can pick a local work size and hold constant
+
+		
+
+
+
+
+
 
 
 
