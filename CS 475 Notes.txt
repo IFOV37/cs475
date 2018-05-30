@@ -2357,8 +2357,10 @@ Do this again (#1), but with a reduction: Sum = summation{ A[:]*B[:] };
 	-> benchmark that against input array size (global work size)
 		-> can pick a local work size and hold constant
 
-		
-
+	
+Need script to set
+	-> num elements
+	-> local size
 
 
 
