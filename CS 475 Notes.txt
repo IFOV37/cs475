@@ -2331,7 +2331,7 @@ OpenCL / OpenGL Vertex Buffer Interoperability  C
 -----------------------------------------------------------------------------------
 
 
-
+Not much here..
 
 
 
@@ -2364,6 +2364,182 @@ Need script to set
 
 
 
+Week 9
+======================================================================================
+
+The Message Passing Interface  A
+-----------------------------------------------------------------------------------
+(Parallelism on Multiple CPUs) - possibly heterogeneous
+
+http://mpi-forum.org
+This is the definitive reference for the MPI standard. Go here if you
+want to read the official specification, which, BTW, continues to
+evolve.
+
+https://www.open-mpi.org/
+This consortium formed later. This is the open source version of
+MPI. If you want to start using MPI, I recommend you look here.
+
+
+Basic idea:
+	2 separate computers that can pass messages b/w each other over a network
+
+
+	each slave cpu must have an integer ID (RANK)
+
+
+Compiling and running:
+
+	% mpicc -o program program.c . . .
+
+	% mpic++ -o program program.cpp . . .
+
+
+
+	% mpiexec –np 64 program   // 64 = num of processors to use
+
+
+#include <mpi.h>
+
+Int
+main( int argc, char *argv[ ] )
+{
+	• • •
+	MPI_Init( &argc, &argv );
+	• • •
+	MPI_Finalize( );
+	return 0;
+}
+
+// if you don't need to process cmds, you can MPI_Init(NULL, NULL);
+
+MPI follows a Single Program Multiple Data model
+
+Communicator: collection of CPUs that are capable of sending messages to each other
+
+	getting info about our place in the communicator:
+
+		int numCPUs; // total # of cpus involved
+		int me; // which one I am
+		MPI_Comm_Size( MPI_COMM_WORLD, &numCPUs );  // size
+		MPI_Comm_Rank( MPI_COMM_WORLD, &me );  // rank
+
+
+Good place to start:
+	MPI_Bcast( array, count, type, src, MPI_COMM_WORLD );
+	// addr of data to send from if you are the src node; addr to rec if not,
+	// # elements, type MPI_CHAR MPI_INT.. etc.
+	//, src rank of the CPU doing the sending
+
+	* no separate rec function *
+		-> both sender and receiver exes same fn
+
+Ex:
+	int numCPUs;
+	int me;
+	float k_over_rho_c; // the ROOT node will know this value, the others won’t (yet)
+	
+	#define ROOT 0
+	
+	MPI_Comm_Size( MPI_COMM_WORLD, &numCPUs );
+	MPI_Comm_Rank( MPI_COMM_WORLD, &me );
+	
+	if( me == ROOT )
+	{
+		<< read k_over_rho_c from the data file >>
+		MPI_Bcast( &k_over_rho_c, 1, MPI_FLOAT, ROOT, MPI_COMM_WORLD ); // send
+	}
+	else
+	{
+		MPI_Bcast( &k_over_rho_c, 1, MPI_FLOAT, ROOT, MPI_COMM_WORLD ); // receive
+	}
+
+
+Sending data form a source CPU to several destination CPUs
+
+MPI_Send( array, numToSend, type, dst, tag, MPI_COMM_WORLD );
+	// addr of data to send from, # elements, type (as seen b4), rank of CPU to send to,
+	// int to differentiate this transmission from any other transmission (must be unique)
+
+	Rules:
+		-> 1 msg from a specific src to a specific dst can NOT overtake a previous msg from the same src to same dst
+
+		-> MPI_Send() blocks until transer is far enough along thatarray can be destroyed or re-used
+
+		-> no guarantees on order from different src's
+
+
+Receiving data in the dest CPU from source CPU
+
+MPI_Recv( array, maxCanReceive, type, src, tag, MPI_COMM_WORLD, &status );
+	// addr to rec into, # eles we can rec (at most), types.., rank we are expectin transm from
+	//, unique int, Type=MPI_Status
+
+	Rules:
+		• The receiver blocks waiting for data that matches what it declares to be looking for
+
+		• One message from a specific src to a specific dst cannot overtake a previous message from the same src to the same dst
+
+		• There are no guarantees on the order from different src’s
+
+		• The order from different src’s could be implied in the tag
+
+		• status is type MPI_Status – the “&status” can be replaced with MPI_STATUS_IGNORE
+
+
+Ex: 		*** remember, this same code runs on all CPUs ***
+
+int numCPUs;
+int me;
+#define MYDATA_SIZE 128
+char mydata[ MYDATA_SIZE ];
+#define ROOT 0
+
+MPI_Comm_Size( MPI_COMM_WORLD, &numCPUs );
+MPI_Comm_Rank( MPI_COMM_WORLD, &me );
+
+if( me == ROOT ) 		// the master
+{
+	for( int dst = 0; dst < numCPUs; dst++ )
+	{
+		char *InputData = “Hello, Beavers!”;				// not really using tag here
+		MPI_Send( InputData, strlen(InputData)+1, MPI_CHAR, dst, 0, MPI_COMM_WORLD );
+	}
+}
+else 		// a slave
+{											// not really using tag here
+	MPI_Recv( myData, MYDATA_SIZE, MPI_CHAR, ROOT, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE );
+	printf( “ ‘%s’ from rank # %d\n”, in, me );
+}
+
+
+Another example:  typically don't sent the entire workload to each dst - just part of it, like this example..
+
+#define NUMELEMENTS ?????
+int numCPUs;
+int me;
+#define ROOT 0
+
+MPI_Comm_Size( MPI_COMM_WORLD, &numCPUs );
+MPI_Comm_Rank( MPI_COMM_WORLD, &me );
+
+int localSize = NUMELEMENTS / numCPUs; // assuming it comes out evenly
+float *myData = new float [ localSize ];
+
+if( me == ROOT ) 	// the master
+{
+	float *InputData = new float [ NUMELEMENTS ];
+	<< read the full input data into InputData from disk >>
+	for( int dst = 1; dst < numCPUs; dst++ )
+	{
+		MPI_Send( &InputData[dst*localSize], localSize, MPI_FLOAT, dst, 0, MPI_COMM_WORLD );
+	}
+}
+else 	// a slave
+{
+	MPI_Recv( myData, localSize, MPI_FLOAT, ROOT, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE );
+	// do something with this subset of the data
+}
 
 
 
@@ -2371,4 +2547,168 @@ Need script to set
 
 
 
+The Message Passing Interface  B
+-----------------------------------------------------------------------------------
+
+
+Compute: Communicate Ratio still applie, except more important now b/c much more overhead in the communicate portion
+
+Note: pattern of breaking a big problem up into pieces, sending them to diff CPUs, computing on the pieces, and getting the results back is so common that it has its term: Scatter/Gather, and has its own MPI fn calls
+
+
+take a data array, break into ~ equal portions, and sent to each cpu
+
+MPI_Scatter( snd_array, snd_count, snd_type, rcv_array, rcv_count, rcv_type, src, MPI_COMM_WORLD );
+
+	// # elements to send, type (seen b4), rcv_count = # eles to rec, type again
+		-> both sender and rec'r exe same fn
+
+Ex:
+
+#define NUMELEMENTS ?????
+int numCPUs;
+int me;
+#define ROOT 0
+
+MPI_Comm_Size( MPI_COMM_WORLD, &numCPUs );
+MPI_Comm_Rank( MPI_COMM_WORLD, &me );
+
+Int localSize = NUMELEMENTS / numCPUs; // assuming it comes out evenly
+float *myData = new float [ localSize ];
+
+if( me == ROOT )
+{
+	float *InputData = new float [ NUMELEMENTS ];
+	<< read the full input data into InputData from disk >>
+	MPI_Scatter( InputData, NUMELEMENTS, MPI_FLOAT, myData, localSize, MPI_FLOAT, ROOT, MPI_WORLD_COMM );   // scatter to everybody
+}
+else
+{
+	MPI_Scatter( NULL, 0, MPI_FLOAT, myData, localSize, MPI_FLOAT, ROOT, MPI_WORLD_COMM );
+}
+
+
+
+
+MPI Gather
+	-> root node doing the gathering
+
+	MPI_Gather( snd_array, snd_count, snd_type, rcv_array, rcv_count, rcv_type, dst, MPI_COMM_WORLD );
+	// # eles to send (snd_count), # eles to rec (rcv_count)
+
+EX:
+
+#define NUMELEMENTS ?????
+int numCPUs;
+int me;
+#define ROOT 0
+
+MPI_Comm_Size( MPI_COMM_WORLD, &numCPUs );
+MPI_Comm_Rank( MPI_COMM_WORLD, &me );
+
+Int localSize = NUMELEMENTS / numCPUs; // assuming it comes out evenly
+float *myData = new float [ localSize ];
+
+if( me == ROOT )
+{
+	float *InputData = new float [ NUMELEMENTS ];
+	. . .					// actual gathering
+	MPI_Gather( myData , localSize, MPI_FLOAT, InputData, NUMELEMENTS, MPI_FLOAT, ROOT, MPI_WORLD_COMM );
+	<< write data from Array to disk >>
+}
+else
+{							// these are the transmissions into gathering
+	MPI_Gather( myData, localSize, MPI_FLOAT, NULL, 0, MPI_FLOAT, ROOT, MPI_WORLD_COMM );
+}
+
+
+Full scatter gather ex:
+
+#define NUMELEMENTS ?????
+int numCPUs;
+int me;
+#define ROOT 0
+
+MPI_Comm_Size( MPI_COMM_WORLD, &numCPUs );
+MPI_Comm_Rank( MPI_COMM_WORLD, &me );
+
+Int localSize = NUMELEMENTS / numCPUs; // assuming it comes out evenly
+float *myData = new float [ localSize ];
+
+if( me == ROOT )
+{
+	float *InputData = new float [ NUMELEMENTS ];
+	<< read the full input data into InputData[ ] from disk >>
+	MPI_Scatter( InputData, NUMELEMENTS, MPI_FLOAT, myData, localSize, MPI_FLOAT, ROOT, MPI_WORLD_COMM );
+
+	<< do some computing on mydata[ ] >>
+
+	MPI_Gather( myData, localSize, MPI_FLOAT, InputData, NUMELEMENTS, MPI_FLOAT, ROOT, MPI_WORLD_COMM );
+	<< write data from InputData[ ] to disk >>
+}
+else
+{
+	MPI_Scatter( NULL, 0, MPI_FLOAT, myData, localSize, MPI_FLOAT, ROOT, MPI_WORLD_COMM );
+
+	<< do some computing on mydata[ ] >>
+
+	MPI_Gather( myData, localSize, MPI_FLOAT, NULL, 0, MPI_FLOAT, ROOT, MPI_WORLD_COMM );
+}
+
+
+MPI Reduction:
+
+MPI_Reduce( partialResult, globalResult, count, type, operator, dst, MPI_COMM_WORLD );
+	// whre the partial result is stored on each cpu, place to store the full result on the dst CPU, # of eles in the partial result, types, MPI_MIN, _MAX, _SUM.. etc, who is given the answer
+
+
+Ex:
+
+int numCPUs;
+int me;
+float globalSum;
+
+#define ROOT 0
+
+MPI_Comm_Size( MPI_COMM_WORLD, &numCPUs );
+MPI_Comm_Rank( MPI_COMM_WORLD, &me );’
+
+float partialSum = 0.;
+<< compute this CPUs partialSum by, perhaps, adding up a local array >>
+
+MPI_Reduce( &partialSum, &globalSum, 1, MPI_FLOAT, MPI_SUM, ROOT, MPI_COMM_WORLD );
+
+
+MPI Barriers:
+
+MPI_Barrier( MPI_COMM_WORLD );
+	-> all must exe this fn b4 ANY can move past.. based on count, not location
+
+
+MPI Derived Types:
+
+Idea: In addition to types MPI_INT, MPI_FLOAT, etc., allow the creation of new MPI types so that you can transmit an “array of structures”.
+
+Reason: There is significant overhead with each transmission. Better to send one entire array of
+structures instead of sending several arrays separately.
+
+MPI_Type_create_struct( count, blocklengths, displacements, types, datatype );
+
+struct point
+{
+	int pointSize;
+	float x, y, z;
+};
+
+MPI_datatype point_t;
+int blocklengths[ ] = { 1, 1, 1, 1 };
+int displacements[ ] = { 0, 4, 8, 12 };
+MPI_type types[ ] = { MPI_INT, MPI_FLOAT, MPI_FLOAT, MPI_FLOAT );
+MPI_Type_create_struct( 4, blocklengths, displacements, types, &point_t );
+
+	-> can now use point_t everywhere you could have used MPI_INT, etc..
+
+
+
+	
 
