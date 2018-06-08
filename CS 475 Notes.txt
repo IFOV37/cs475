@@ -2710,5 +2710,74 @@ MPI_Type_create_struct( 4, blocklengths, displacements, types, &point_t );
 
 
 
-	
+
+
+Week 10
+======================================================================================
+
+OpenGL Compute Shaders
+-----------------------------------------------------------------------------------
+
+
+Why not just use OpenCL instead?
+
+	-> open CL great job of using GPU for general-purpose data-// computing
+		-> more feature-rich than GL compute shaders
+
+OpenCL requires installing a separate driver and separate libraries
+	-> takes time and effort
+
+Compute Shaders use GLSL lang
+
+CS use same context as the OpenGL rendering pipeline
+	-> no need to acquire and release context as OpenGL+OpenCL must do
+
+using OpenCL is somewhat cumbersome
+	-> requires a lot of setup
+	-> CS look to be more convenient
+
+
+If I know GLSL, what do I need to do diff to write a compute shader?
+
+	1) type is GL_COMPUTE_SHADER, compile and link just like any other GLSL shader pgm
+
+	2) a CS must be in the shader pgm all by iteself
+		-> no vertex, gragment, etc.. shaders in there with it
+
+	3) CS has access to uniform variables and buffer objs, but cannot access any pipeline vars such as attributes or vars from other stages
+
+	4) CS needs to declare the # of work-items in each of its work-groups in a special GLSL layout statement
+
+
+void glDispatchCompute(num_groups_x, num_groups_y, num_groups_z);
+	-> basically same as enqueueNDRangeKernel
+
+Basic flow
+	-> bind buffers
+	-> dispatch compute
+		-> barrier
+	-> bind buffers/draw arrays
+
+Special pre-set vars in the compute shader:
+
+in uvec3 gl_NumWorkGroups ;		Same numbers as in the glDispatchCompute call
+
+const uvec3 gl_WorkGroupSize ;		Same numbers as in the layout local_size_*
+
+in uvec3 gl_WorkGroupID ;		Which workgroup this thread is in
+
+in uvec3 gl_LocalInvocationID ;		Where this thread is in the current workgroup
+
+in uvec3 gl_GlobalInvocationID ;		Where this thread is in all the work items
+
+in uint gl_LocalInvocationIndex ; 		1D representation of the gl_LocalInvocationID
+										(used for indexing into a shared array)
+
+
+
+
+
+
+
+
 
